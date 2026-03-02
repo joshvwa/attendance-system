@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intelligent Attendance Monitoring & Predictive Analytics System</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body {font-family:Arial;margin:0;background:#eef5ff;transition:0.3s;}
+header{background:#0d47a1;color:white;padding:15px;text-align:center;font-size:18px;}
+.container{max-width:1100px;margin:20px auto;display:grid;gap:20px;}
+.card{background:white;padding:20px;border-radius:10px;box-shadow:0 5px 15px rgba(0,0,0,0.1);}
+input,select{width:100%;padding:8px;margin-top:5px;border-radius:5px;border:1px solid #ccc;}
+button{padding:8px 12px;margin-top:10px;border:none;border-radius:5px;background:#ff9800;color:white;cursor:pointer;}
+button:hover{background:#f57c00;}
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+th,td{border:1px solid #ddd;padding:8px;text-align:center;}
+th{background:#1565c0;color:white;}
+.safe{color:green;font-weight:bold;}
+.warning{color:orange;font-weight:bold;}
+.risk{color:red;font-weight:bold;}
+.analytics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+.analytics div{background:#f1f8ff;padding:10px;border-radius:8px;text-align:center;}
+.dark{background:#121212;color:white;}
+.dark .card{background:#1e1e1e;}
+</style>
+</head>
+
+<body>
+
+<header>
+Intelligent Attendance Monitoring & Predictive Analytics System
+<button onclick="toggleDark()">🌙</button>
+</header>
+
+<div class="container">
+
+<div class="card">
+<h2>Add Student Record</h2>
+
+<label>Name</label>
+<input type="text" id="name">
+
+<label>Subject</label>
+<input type="text" id="subject">
+
+<label>Total Classes</label>
+<input type="number" id="total">
+
+<label>Attended</label>
+<input type="number" id="attended">
+
+<button onclick="addRecord()">Analyze & Save</button>
+
+<div id="result"></div>
+<canvas id="pieChart"></canvas>
+<canvas id="radarChart"></canvas>
+</div>
+
+<div class="card">
+<h2>Class Analytics Dashboard</h2>
+<div class="analytics">
+<div>Total Students<br><b id="totalStudents">0</b></div>
+<div>Class Average<br><b id="classAverage">0%</b></div>
+<div>Std Deviation<br><b id="stdDev">0</b></div>
+<div>Safe<br><b id="safeCount">0</b></div>
+<div>Warning<br><b id="warnCount">0</b></div>
+<div>High Risk<br><b id="riskCount">0</b></div>
+</div>
+<canvas id="barChart"></canvas>
+<canvas id="lineChart"></canvas>
+</div>
+
+<div class="card">
+<h2>Records</h2>
+
+<input type="text" placeholder="Search by name..." onkeyup="searchStudent(this.value)">
+<select onchange="filterRisk(this.value)">
+<option value="All">All</option>
+<option value="Safe">Safe</option>
+<option value="Warning">Warning</option>
+<option value="High Risk">High Risk</option>
+</select>
+
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="generatePDF()">Generate PDF</button>
+<button onclick="clearAll()">Clear All</button>
+
+<table id="table">
+<thead>
+<tr>
+<th>Name</th>
+<th>Subject</th>
+<th>%</th>
+<th>Risk</th>
+<th>ML Score</th>
+<th>Date</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+</div>
+
+</div>
+
+<script>
+let records=[];
+let pieChart, barChart, lineChart, radarChart;
+
+function toggleDark(){ document.body.classList.toggle("dark"); }
+
+function calculateRiskScore(percent, missed, classAvg){
+ let attendanceFactor=(100-percent)*0.6;
+ let streakFactor=missed*0.2;
+ let deviationFactor=Math.abs(classAvg-percent)*0.2;
+ return (attendanceFactor+streakFactor+deviationFactor).toFixed(2);
+}
+
+function calculateStdDev(data){
+ if(data.length===0) return 0;
+ let mean=data.reduce((a,b)=>a+b)/data.length;
+ let variance=data.reduce((a,b)=>a+(b-mean)**2,0)/data.length;
+ return Math.sqrt(variance).toFixed(2);
+}
+
+function addRecord(){
+ let name=nameInput=document.getElementById("name").value.trim();
+ let subject=document.getElementById("subject").value.trim();
+ let total=parseInt(document.getElementById("total").value);
+ let attended=parseInt(document.getElementById("attended").value);
+
+ if(!name||!subject||total<=0||attended<0||attended>total){
+  alert("Invalid Input");
+  return;
+ }
+
+ let percent=(attended/total)*100;
+ let missed=total-attended;
+ let classAvg=records.length?records.reduce((a,b)=>a+parseFloat(b.percent),0)/records.length:percent;
+
+ let mlScore=calculateRiskScore(percent,missed,classAvg);
+
+ let status="";
+ if(mlScore<20) status="Safe";
+ else if(mlScore<40) status="Warning";
+ else status="High Risk";
+
+ if(percent<70 && percent>65) alert("⚠ Early Warning: Attendance dropping!");
+
+ let x=Math.ceil((0.75*total-attended)/(1-0.75));
+ let forecast=(percent+((percent-classAvg)/10)*5).toFixed(2);
+
+ document.getElementById("result").innerHTML=`
+ <p><b>${name}</b></p>
+ <p>Attendance: ${percent.toFixed(2)}%</p>
+ <p>Status: <span class="${status==='Safe'?'safe':status==='Warning'?'warning':'risk'}">${status}</span></p>
+ <p>ML Risk Score: ${mlScore}</p>
+ <p>Classes needed to reach 75%: ${x>0?x:0}</p>
+ <p>Forecast after 5 classes: ${forecast}%</p>
+ `;
+
+ updatePie(attended,missed);
+ updateRadar(subject,percent);
+
+ records.push({name,subject,percent:percent.toFixed(2),status,mlScore,date:new Date().toLocaleString()});
+ localStorage.setItem("records",JSON.stringify(records));
+ display();
+}
+
+function updatePie(a,m){
+ if(pieChart) pieChart.destroy();
+ pieChart=new Chart(document.getElementById("pieChart"),{
+  type:"pie",
+  data:{labels:["Attended","Missed"],datasets:[{data:[a,m],backgroundColor:["green","red"]}]}
+ });
+}
+
+function updateRadar(sub,percent){
+ if(radarChart) radarChart.destroy();
+ radarChart=new Chart(document.getElementById("radarChart"),{
+  type:"radar",
+  data:{labels:[sub],datasets:[{label:"Subject %",data:[percent],backgroundColor:"rgba(21,101,192,0.3)",borderColor:"#1565c0"}]}
+ });
+}
+
+function display(){
+ let tbody=document.querySelector("#table tbody");
+ tbody.innerHTML="";
+ let total=0,safe=0,warn=0,risk=0;
+ records.forEach((r,i)=>{
+  total+=parseFloat(r.percent);
+  if(r.status==="Safe") safe++;
+  else if(r.status==="Warning") warn++;
+  else risk++;
+  tbody.innerHTML+=`
+  <tr>
+  <td>${r.name}</td>
+  <td>${r.subject}</td>
+  <td>${r.percent}%</td>
+  <td>${r.status}</td>
+  <td>${r.mlScore}</td>
+  <td>${r.date}</td>
+  <td><button onclick="deleteRec(${i})">❌</button></td>
+  </tr>`;
+ });
+
+ document.getElementById("totalStudents").innerText=records.length;
+ document.getElementById("classAverage").innerText=records.length?(total/records.length).toFixed(2)+"%":"0%";
+ document.getElementById("stdDev").innerText=calculateStdDev(records.map(r=>parseFloat(r.percent)));
+ document.getElementById("safeCount").innerText=safe;
+ document.getElementById("warnCount").innerText=warn;
+ document.getElementById("riskCount").innerText=risk;
+
+ updateBar(safe,warn,risk);
+ updateLine();
+}
+
+function updateBar(s,w,r){
+ if(barChart) barChart.destroy();
+ barChart=new Chart(document.getElementById("barChart"),{
+  type:"bar",
+  data:{labels:["Safe","Warning","High Risk"],datasets:[{data:[s,w,r],backgroundColor:["green","orange","red"]}]}
+ });
+}
+
+function updateLine(){
+ if(lineChart) lineChart.destroy();
+ lineChart=new Chart(document.getElementById("lineChart"),{
+  type:"line",
+  data:{labels:records.map(r=>r.name),datasets:[{label:"Attendance %",data:records.map(r=>r.percent),borderColor:"#1565c0"}]}
+ });
+}
+
+function deleteRec(i){records.splice(i,1);display();}
+function clearAll(){records=[];localStorage.removeItem("records");display();}
+function searchStudent(val){
+ val=val.toLowerCase();
+ document.querySelectorAll("#table tbody tr").forEach(row=>{
+  row.style.display=row.children[0].innerText.toLowerCase().includes(val)?"":"none";
+ });
+}
+function filterRisk(val){
+ document.querySelectorAll("#table tbody tr").forEach(row=>{
+  row.style.display=(val==="All"||row.children[3].innerText===val)?"":"none";
+ });
+}
+function exportCSV(){
+ let csv="Name,Subject,Attendance %,Risk,ML Score,Date\n";
+ records.forEach(r=>{csv+=`${r.name},${r.subject},${r.percent},${r.status},${r.mlScore},${r.date}\n`;});
+ let blob=new Blob([csv],{type:"text/csv"});
+ let link=document.createElement("a");
+ link.href=URL.createObjectURL(blob);
+ link.download="attendance_analytics.csv";
+ link.click();
+}
+function generatePDF(){
+ const { jsPDF }=window.jspdf;
+ const doc=new jsPDF();
+ doc.text("Attendance Report",20,20);
+ records.forEach((r,i)=>{
+  doc.text(`${r.name} | ${r.subject} | ${r.percent}% | ${r.status}`,20,30+i*10);
+ });
+ doc.save("attendance_report.pdf");
+}
+
+window.onload=function(){
+ let saved=localStorage.getItem("records");
+ if(saved){records=JSON.parse(saved);display();}
+}
+</script>
+
+</body>
+</html>
