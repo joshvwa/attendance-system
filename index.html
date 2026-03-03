@@ -3,186 +3,257 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Intelligent Attendance Monitoring & Predictive Analytics System</title>
+<title>Smart Attendance Analytics System</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
-body {font-family:Arial;margin:0;background:#eef5ff;transition:0.3s;}
-header{background:#0d47a1;color:white;padding:15px;text-align:center;font-size:18px;}
-.container{max-width:1100px;margin:20px auto;display:grid;gap:20px;}
-.card{background:white;padding:20px;border-radius:10px;box-shadow:0 5px 15px rgba(0,0,0,0.1);}
-input,select{width:100%;padding:8px;margin-top:5px;border-radius:5px;border:1px solid #ccc;}
-button{padding:8px 12px;margin:5px 5px 0 0;border:none;border-radius:5px;background:#ff9800;color:white;cursor:pointer;}
-button:hover{background:#f57c00;}
-table{width:100%;border-collapse:collapse;margin-top:10px;}
-th,td{border:1px solid #ddd;padding:8px;text-align:center;}
-th{background:#1565c0;color:white;}
-.safe{color:green;font-weight:bold;}
-.warning{color:orange;font-weight:bold;}
-.risk{color:red;font-weight:bold;}
-.analytics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
-.analytics div{background:#f1f8ff;padding:10px;border-radius:8px;text-align:center;}
-.dark{background:#121212;color:white;}
-.dark .card{background:#1e1e1e;}
-footer{text-align:center;padding:10px;font-size:14px;}
-.log{max-height:150px;overflow-y:auto;font-size:13px;background:#f4f4f4;padding:10px;border-radius:5px;}
+body{
+background:#0f172a;
+color:white;
+font-family:Arial;
+margin:0;
+padding:0;
+}
+
+header{
+background:#1e293b;
+padding:15px;
+text-align:center;
+font-size:22px;
+font-weight:bold;
+}
+
+.container{
+padding:20px;
+}
+
+.card{
+background:#1e293b;
+padding:20px;
+margin-bottom:20px;
+border-radius:10px;
+box-shadow:0 0 10px rgba(0,0,0,0.5);
+}
+
+input,button{
+padding:10px;
+margin:5px 0;
+width:100%;
+border-radius:5px;
+border:none;
+}
+
+button{
+background:#3b82f6;
+color:white;
+cursor:pointer;
+}
+
+button:hover{
+background:#2563eb;
+}
+
+.safe{color:#22c55e;}
+.warning{color:#facc15;}
+.risk{color:#ef4444;}
+
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+th,td{
+padding:8px;
+border:1px solid #334155;
+text-align:center;
+}
+
+canvas{
+background:white;
+border-radius:10px;
+padding:10px;
+}
 </style>
 </head>
 
 <body>
 
-<header>
-Intelligent Attendance Monitoring & Predictive Analytics System
-<button onclick="toggleDark()">🌙</button>
-</header>
+<header>Smart Attendance Monitoring & Predictive Analytics</header>
 
 <div class="container">
 
 <div class="card">
-<h2>Add Student Record</h2>
+<h3>Add Student Record</h3>
 
-<label>Name</label>
-<input type="text" id="name">
+<input type="text" id="name" placeholder="Student Name">
+<input type="text" id="subject" placeholder="Subject">
+<input type="number" id="total" placeholder="Total Classes">
+<input type="number" id="attended" placeholder="Attended Classes">
+<input type="text" id="phone" placeholder="Phone with country code (9198xxxxxxx)">
+<button onclick="addRecord()">Add Record</button>
+</div>
 
-<label>Subject</label>
-<input type="text" id="subject">
-
-<label>Phone (with country code)</label>
-<input type="text" id="phone" placeholder="919876543210">
-
-<label>Email</label>
-<input type="email" id="email" placeholder="student@email.com">
-
-<label>Total Classes</label>
-<input type="number" id="total">
-
-<label>Attended</label>
-<input type="number" id="attended">
-
-<button onclick="addRecord()">Analyze & Save</button>
-
-<div id="result"></div>
+<div class="card">
+<h3>Analytics Dashboard</h3>
 <canvas id="pieChart"></canvas>
+<br>
 <canvas id="radarChart"></canvas>
 </div>
 
 <div class="card">
-<h2>Notification Log</h2>
-<div class="log" id="log"></div>
-</div>
-
-<div class="card">
-<h2>Records</h2>
-
-<table id="table">
+<h3>Student Records</h3>
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="downloadPDF()">Download PDF</button>
+<table>
 <thead>
 <tr>
 <th>Name</th>
+<th>Subject</th>
 <th>%</th>
 <th>Status</th>
-<th>Actions</th>
+<th>Risk</th>
+<th>Date</th>
 </tr>
 </thead>
-<tbody></tbody>
+<tbody id="tableBody"></tbody>
 </table>
+</div>
 
+<div class="card">
+<h3>Alert Log (Low Attendance)</h3>
+<ul id="alertLog"></ul>
 </div>
 
 </div>
-
-<footer>
-Developed by Joshua | BSc Computer Science Final Year Project
-</footer>
 
 <script>
-let records=[];
+let records = JSON.parse(localStorage.getItem("records")) || [];
+
 let pieChart, radarChart;
 
-function toggleDark(){ document.body.classList.toggle("dark"); }
-
-function calculateRiskScore(percent, missed, classAvg){
- let attendanceFactor=(100-percent)*0.6;
- let streakFactor=missed*0.2;
- let deviationFactor=Math.abs(classAvg-percent)*0.2;
- return (attendanceFactor+streakFactor+deviationFactor).toFixed(2);
+function calculateRisk(percent){
+let risk = 100 - percent;
+return risk.toFixed(2);
 }
 
-function addLog(message){
- let log=document.getElementById("log");
- log.innerHTML+=`<div>${new Date().toLocaleTimeString()} - ${message}</div>`;
+function standardDeviation(){
+let arr = records.map(r=>parseFloat(r.percent));
+let mean = arr.reduce((a,b)=>a+b,0)/arr.length || 0;
+let variance = arr.reduce((a,b)=>a+Math.pow(b-mean,2),0)/arr.length || 0;
+return Math.sqrt(variance).toFixed(2);
 }
 
 function addRecord(){
- let name=document.getElementById("name").value.trim();
- let subject=document.getElementById("subject").value.trim();
- let phone=document.getElementById("phone").value.trim();
- let email=document.getElementById("email").value.trim();
- let total=parseInt(document.getElementById("total").value);
- let attended=parseInt(document.getElementById("attended").value);
 
- if(!name||!subject||!phone||!email||total<=0||attended<0||attended>total){
-  alert("Invalid Input");
-  return;
- }
+let name=name.value.trim();
+let subject=subject.value.trim();
+let total=parseInt(total.value);
+let attended=parseInt(attended.value);
+let phone=phone.value.trim();
 
- let percent=(attended/total)*100;
- let missed=total-attended;
- let classAvg=records.length?records.reduce((a,b)=>a+parseFloat(b.percent),0)/records.length:percent;
- let mlScore=calculateRiskScore(percent,missed,classAvg);
+if(!name||!subject||!phone||total<=0||attended<0||attended>total){
+alert("Invalid Input");
+return;
+}
 
- let status="";
- if(mlScore<20) status="Safe";
- else if(mlScore<40) status="Warning";
- else status="High Risk";
+let percent=(attended/total)*100;
+let risk=calculateRisk(percent);
 
- let message=`Hello ${name}, your attendance is ${percent.toFixed(2)}%. Status: ${status}. Please improve immediately.`;
- let whatsappURL=`https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
- let mailURL=`mailto:${email}?subject=Attendance Alert&body=${encodeURIComponent(message)}`;
+let status="Safe";
+if(percent<75 && percent>=60) status="Warning";
+if(percent<60) status="High Risk";
 
- document.getElementById("result").innerHTML=`
- <p><b>${name}</b></p>
- <p>Attendance: ${percent.toFixed(2)}%</p>
- <p>Status: <span class="${status==='Safe'?'safe':status==='Warning'?'warning':'risk'}">${status}</span></p>
- <p>ML Risk Score: ${mlScore}</p>
- ${percent<75?`<button onclick="window.open('${whatsappURL}')">📲 WhatsApp Alert</button>
- <button onclick="window.open('${mailURL}')">📧 Email Alert</button>`:""}
- `;
+let forecast=(percent+5).toFixed(2);
 
- records.push({name,percent,status,phone,email});
- display();
+let record={
+name,subject,
+percent:percent.toFixed(2),
+status,risk,
+date:new Date().toLocaleString()
+};
 
- document.getElementById("name").value="";
- document.getElementById("subject").value="";
- document.getElementById("phone").value="";
- document.getElementById("email").value="";
- document.getElementById("total").value="";
- document.getElementById("attended").value="";
+records.push(record);
+localStorage.setItem("records",JSON.stringify(records));
+
+updateCharts(attended,total-attended,subject,percent);
+display();
+
+if(percent<75){
+let msg=`Hello ${name}, your attendance is ${percent.toFixed(2)}%. Please improve immediately.`;
+let url=`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+window.open(url,'_blank');
+document.getElementById("alertLog").innerHTML+=`<li>${name} - ${percent.toFixed(2)}%</li>`;
+}
+
+document.querySelectorAll("input").forEach(i=>i.value="");
+}
+
+function updateCharts(attended,missed,subject,percent){
+
+if(pieChart) pieChart.destroy();
+if(radarChart) radarChart.destroy();
+
+pieChart=new Chart(document.getElementById("pieChart"),{
+type:"pie",
+data:{
+labels:["Attended","Missed"],
+datasets:[{data:[attended,missed]}]
+}
+});
+
+radarChart=new Chart(document.getElementById("radarChart"),{
+type:"radar",
+data:{
+labels:[subject],
+datasets:[{label:"Attendance %",data:[percent]}]
+}
+});
 }
 
 function display(){
- let tbody=document.querySelector("#table tbody");
- tbody.innerHTML="";
- records.forEach((r,i)=>{
-  let message=`Hello ${r.name}, your attendance is ${r.percent}%. Status: ${r.status}. Please improve immediately.`;
-  let wa=`https://wa.me/${r.phone}?text=${encodeURIComponent(message)}`;
-  let mail=`mailto:${r.email}?subject=Attendance Alert&body=${encodeURIComponent(message)}`;
-
-  tbody.innerHTML+=`
-  <tr>
-  <td>${r.name}</td>
-  <td>${r.percent}%</td>
-  <td>${r.status}</td>
-  <td>
-  ${r.percent<75?`
-  <button onclick="window.open('${wa}');addLog('WhatsApp alert sent to ${r.name}')">📲</button>
-  <button onclick="window.open('${mail}');addLog('Email alert sent to ${r.name}')">📧</button>
-  `:"Safe"}
-  </td>
-  </tr>`;
- });
+let tbody=document.getElementById("tableBody");
+tbody.innerHTML="";
+records.forEach(r=>{
+tbody.innerHTML+=`
+<tr>
+<td>${r.name}</td>
+<td>${r.subject}</td>
+<td>${r.percent}%</td>
+<td class="${r.status==='Safe'?'safe':r.status==='Warning'?'warning':'risk'}">${r.status}</td>
+<td>${r.risk}</td>
+<td>${r.date}</td>
+</tr>
+`;
+});
 }
+
+function exportCSV(){
+let csv="Name,Subject,Percent,Status,Risk,Date\n";
+records.forEach(r=>{
+csv+=`${r.name},${r.subject},${r.percent},${r.status},${r.risk},${r.date}\n`;
+});
+let blob=new Blob([csv],{type:"text/csv"});
+let link=document.createElement("a");
+link.href=URL.createObjectURL(blob);
+link.download="attendance.csv";
+link.click();
+}
+
+function downloadPDF(){
+const {jsPDF}=window.jspdf;
+let doc=new jsPDF();
+doc.text("Attendance Report",10,10);
+let y=20;
+records.forEach(r=>{
+doc.text(`${r.name} - ${r.percent}% - ${r.status}`,10,y);
+y+=10;
+});
+doc.save("attendance_report.pdf");
+}
+
+display();
 </script>
 
 </body>
