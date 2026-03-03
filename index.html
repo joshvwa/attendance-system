@@ -152,6 +152,7 @@ let subject = document.getElementById("subject").value.trim();
 let total = parseInt(document.getElementById("total").value);
 let attended = parseInt(document.getElementById("attended").value);
 let phone = document.getElementById("phone").value.trim();
+  
 if(!name||!subject||!phone||total<=0||attended<0||attended>total){
 alert("Invalid Input");
 return;
@@ -257,4 +258,5 @@ display();
 
 </body>
 </html>
+
 
