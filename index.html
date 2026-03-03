@@ -3,128 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Intelligent Attendance Monitoring System</title>
+<title>Smart Attendance Monitoring & Predictive Analytics</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
-body {
-    font-family: Arial;
-    background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
-    color: white;
-    padding:20px;
-}
-
-.container {
-    max-width:1100px;
-    margin:auto;
-}
-
-.card {
-    background:#1e2a38;
-    padding:20px;
-    border-radius:15px;
-    margin-bottom:20px;
-    box-shadow:0 0 20px rgba(0,0,0,0.5);
-}
-
-input, select, button {
-    padding:8px;
-    margin:5px;
-    border-radius:5px;
-    border:none;
-}
-
-button {
-    background:#00c6ff;
-    cursor:pointer;
-    font-weight:bold;
-}
-
-button:hover {
-    background:#0072ff;
-    color:white;
-}
-
-table {
-    width:100%;
-    border-collapse:collapse;
-    margin-top:10px;
-}
-
-th, td {
-    padding:8px;
-    text-align:center;
-}
-
-th {
-    background:#00c6ff;
-    color:black;
-}
-
-.safe { color:#00ff88; font-weight:bold; }
-.risk { color:#ff4d4d; font-weight:bold; }
-
-.stats {
-    display:flex;
-    justify-content:space-between;
-    margin-top:15px;
-    font-weight:bold;
-}
+body{background:#0f172a;color:white;font-family:Arial;margin:0}
+header{background:#1e293b;padding:15px;text-align:center;font-size:22px;font-weight:bold}
+.container{padding:20px}
+.card{background:#1e293b;padding:20px;margin-bottom:20px;border-radius:10px}
+input,button,select{padding:10px;margin:5px 0;width:100%;border-radius:5px;border:none}
+button{background:#3b82f6;color:white;cursor:pointer}
+button:hover{background:#2563eb}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px;border:1px solid #334155;text-align:center}
+.safe{color:#22c55e}
+.warning{color:#facc15}
+.risk{color:#ef4444}
+canvas{background:white;border-radius:10px;padding:10px}
 </style>
 </head>
 
 <body>
+
+<header>Smart Attendance Monitoring & Predictive Analytics</header>
+
 <div class="container">
 
-<h2>🎓 Intelligent Attendance Monitoring & Predictive Analytics</h2>
-
 <div class="card">
+<h3>Add Student Record</h3>
 <input type="text" id="name" placeholder="Student Name">
 <input type="text" id="subject" placeholder="Subject">
-<input type="number" id="present" placeholder="Classes Attended">
 <input type="number" id="total" placeholder="Total Classes">
+<input type="number" id="attended" placeholder="Attended Classes">
+<input type="text" id="phone" placeholder="Phone (91xxxxxxxxxx)">
 <button onclick="addRecord()">Add Record</button>
 </div>
 
 <div class="card">
-<input type="text" id="search" placeholder="Search Student" onkeyup="renderTable()">
-<select id="filter" onchange="renderTable()">
-<option value="all">All</option>
-<option value="safe">Safe</option>
-<option value="risk">High Risk</option>
+<h3>Search & Filter</h3>
+<input type="text" id="search" placeholder="Search by Name" onkeyup="displayRecords()">
+<select id="filter" onchange="displayRecords()">
+<option value="All">All</option>
+<option value="Safe">Safe</option>
+<option value="Warning">Warning</option>
+<option value="High Risk">High Risk</option>
 </select>
-<button onclick="exportCSV()">Export CSV</button>
-<button onclick="downloadPDF()">Download PDF</button>
 </div>
 
 <div class="card">
+<h3>Analytics Dashboard</h3>
+<p id="classAverage"></p>
+<p id="stdDevDisplay"></p>
+<canvas id="pieChart"></canvas><br>
 <canvas id="lineChart"></canvas>
 </div>
 
 <div class="card">
-<div class="stats">
-<div>Class Average: <span id="average">0</span>%</div>
-<div>Std Deviation: <span id="std">0</span></div>
-</div>
-</div>
-
-<div class="card">
-<table id="table">
+<h3>Student Records</h3>
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="downloadPDF()">Download PDF</button>
+<table>
 <thead>
 <tr>
 <th>Name</th>
 <th>Subject</th>
 <th>%</th>
+<th>Forecast(5)</th>
+<th>Need for 75%</th>
 <th>Status</th>
-<th>Risk</th>
-<th>Classes to 75%</th>
-<th>Forecast (5)</th>
 <th>Date</th>
 </tr>
 </thead>
-<tbody></tbody>
+<tbody id="tableBody"></tbody>
 </table>
 </div>
 
@@ -133,140 +85,163 @@ th {
 <script>
 
 let records = JSON.parse(localStorage.getItem("records")) || [];
-
-function classesToReach75(present, total){
-    let required = 0;
-    while(((present + required)/(total + required))*100 < 75){
-        required++;
-    }
-    return required;
-}
-
-function forecastAfter5(present,total){
-    return (((present+5)/(total+5))*100).toFixed(2);
-}
-
-function calculateStd(values){
-    let mean = values.reduce((a,b)=>a+b,0)/values.length;
-    let variance = values.reduce((sum,val)=>sum+Math.pow(val-mean,2),0)/values.length;
-    return Math.sqrt(variance).toFixed(2);
-}
+let pieChart,lineChart;
 
 function addRecord(){
-    let name = document.getElementById("name").value;
-    let subject = document.getElementById("subject").value;
-    let present = parseInt(document.getElementById("present").value);
-    let total = parseInt(document.getElementById("total").value);
 
-    if(!name || !subject || !present || !total){
-        alert("Fill all fields");
-        return;
-    }
+let name=nameInput("name");
+let subject=nameInput("subject");
+let total=parseInt(nameInput("total"));
+let attended=parseInt(nameInput("attended"));
+let phone=nameInput("phone");
 
-    let percentage = ((present/total)*100).toFixed(2);
-    let status = percentage >= 75 ? "Safe" : "High Risk";
-    let risk = (100 - percentage).toFixed(2);
-    let classesNeeded = classesToReach75(present,total);
-    let forecast = forecastAfter5(present,total);
-    let date = new Date().toLocaleString();
-
-    records.push({name,subject,percentage,status,risk,classesNeeded,forecast,date});
-    localStorage.setItem("records",JSON.stringify(records));
-
-    renderTable();
+if(!name||!subject||!phone||total<=0||attended<0||attended>total){
+alert("Invalid Input");return;
 }
 
-function renderTable(){
-    let tbody = document.querySelector("#table tbody");
-    tbody.innerHTML="";
+let percent=(attended/total)*100;
 
-    let search = document.getElementById("search").value.toLowerCase();
-    let filter = document.getElementById("filter").value;
+// 75% Rule
+let status="Safe";
+if(percent<75 && percent>=60) status="Warning";
+if(percent<60) status="High Risk";
 
-    let percentages=[];
+// Forecast after 5 classes
+let forecast=((attended+5)/(total+5)*100).toFixed(2);
 
-    records.forEach(r=>{
-        if(r.name.toLowerCase().includes(search)){
-            if(filter=="all" || 
-              (filter=="safe" && r.status=="Safe") ||
-              (filter=="risk" && r.status=="High Risk")){
-
-                percentages.push(parseFloat(r.percentage));
-
-                let row = `
-                <tr>
-                <td>${r.name}</td>
-                <td>${r.subject}</td>
-                <td>${r.percentage}%</td>
-                <td class="${r.status=='Safe'?'safe':'risk'}">${r.status}</td>
-                <td>${r.risk}</td>
-                <td>${r.classesNeeded}</td>
-                <td>${r.forecast}%</td>
-                <td>${r.date}</td>
-                </tr>`;
-                tbody.innerHTML += row;
-            }
-        }
-    });
-
-    if(percentages.length>0){
-        let avg = (percentages.reduce((a,b)=>a+b,0)/percentages.length).toFixed(2);
-        document.getElementById("average").innerText=avg;
-        document.getElementById("std").innerText=calculateStd(percentages);
-    }
-
-    updateChart(percentages);
+// Classes required to reach 75%
+let required=0;
+if(percent<75){
+required=Math.ceil((0.75*total - attended)/0.25);
 }
 
-let chart;
-function updateChart(values){
-    let ctx=document.getElementById("lineChart");
+// Standard Deviation
+let allPercents=records.map(r=>parseFloat(r.percent));
+allPercents.push(percent);
+let mean=allPercents.reduce((a,b)=>a+b,0)/allPercents.length;
+let variance=allPercents.reduce((a,b)=>a+Math.pow(b-mean,2),0)/allPercents.length;
+let stdDev=Math.sqrt(variance).toFixed(2);
 
-    if(chart) chart.destroy();
+// Save Record
+let record={
+name,subject,
+percent:percent.toFixed(2),
+forecast,
+required,
+status,
+date:new Date().toLocaleString()
+};
 
-    chart=new Chart(ctx,{
-        type:'line',
-        data:{
-            labels: records.map(r=>r.name),
-            datasets:[{
-                label:'Attendance %',
-                data: records.map(r=>r.percentage),
-                borderColor:'#00c6ff',
-                fill:false
-            }]
-        }
-    });
+records.push(record);
+localStorage.setItem("records",JSON.stringify(records));
+
+updateAnalytics(stdDev);
+displayRecords();
+updateCharts();
+
+// WhatsApp Alert if below 75%
+if(percent<75){
+let msg=`Hello ${name}, your attendance is ${percent.toFixed(2)}%.
+Forecast after 5 classes: ${forecast}%.
+You need ${required} more classes to reach 75%.`;
+window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+document.querySelectorAll("input").forEach(i=>i.value="");
+}
+
+function nameInput(id){return document.getElementById(id).value.trim();}
+
+function updateAnalytics(stdDev){
+
+if(records.length===0) return;
+
+let avg=records.reduce((a,b)=>a+parseFloat(b.percent),0)/records.length;
+
+document.getElementById("classAverage").innerHTML="Class Average: "+avg.toFixed(2)+"%";
+document.getElementById("stdDevDisplay").innerHTML="Standard Deviation: "+stdDev;
+}
+
+function displayRecords(){
+
+let tbody=document.getElementById("tableBody");
+let search=document.getElementById("search").value.toLowerCase();
+let filter=document.getElementById("filter").value;
+
+tbody.innerHTML="";
+
+records.forEach(r=>{
+if(r.name.toLowerCase().includes(search) &&
+(filter==="All"||r.status===filter)){
+tbody.innerHTML+=`
+<tr>
+<td>${r.name}</td>
+<td>${r.subject}</td>
+<td>${r.percent}%</td>
+<td>${r.forecast}%</td>
+<td>${r.required}</td>
+<td class="${r.status==='Safe'?'safe':r.status==='Warning'?'warning':'risk'}">${r.status}</td>
+<td>${r.date}</td>
+</tr>`;
+}
+});
+}
+
+function updateCharts(){
+
+if(records.length===0) return;
+
+let last=parseFloat(records[records.length-1].percent);
+let missed=100-last;
+
+if(pieChart) pieChart.destroy();
+if(lineChart) lineChart.destroy();
+
+pieChart=new Chart(pieChart=document.getElementById("pieChart"),{
+type:"pie",
+data:{labels:["Attended","Missed"],
+datasets:[{data:[last,missed]}]}
+});
+
+lineChart=new Chart(document.getElementById("lineChart"),{
+type:"line",
+data:{
+labels:records.map(r=>r.name),
+datasets:[{label:"Attendance %",
+data:records.map(r=>parseFloat(r.percent)),
+fill:false,tension:0.3}]},
+options:{scales:{y:{beginAtZero:true,max:100}}}
+});
 }
 
 function exportCSV(){
-    let csv="Name,Subject,Percentage,Status,Risk,ClassesNeeded,Forecast,Date\n";
-    records.forEach(r=>{
-        csv+=`${r.name},${r.subject},${r.percentage},${r.status},${r.risk},${r.classesNeeded},${r.forecast},${r.date}\n`;
-    });
-
-    let blob=new Blob([csv],{type:"text/csv"});
-    let a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download="attendance.csv";
-    a.click();
+let csv="Name,Subject,Percent,Forecast,Required,Status,Date\n";
+records.forEach(r=>{
+csv+=`${r.name},${r.subject},${r.percent},${r.forecast},${r.required},${r.status},${r.date}\n`;
+});
+let blob=new Blob([csv],{type:"text/csv"});
+let link=document.createElement("a");
+link.href=URL.createObjectURL(blob);
+link.download="attendance.csv";
+link.click();
 }
 
 function downloadPDF(){
-    const { jsPDF } = window.jspdf;
-    let doc = new jsPDF();
-    doc.text("Attendance Report",10,10);
-    let y=20;
-
-    records.forEach(r=>{
-        doc.text(`${r.name} - ${r.percentage}% - ${r.status}`,10,y);
-        y+=10;
-    });
-
-    doc.save("attendance.pdf");
+const {jsPDF}=window.jspdf;
+let doc=new jsPDF();
+doc.text("Attendance Report",10,10);
+let y=20;
+records.forEach(r=>{
+doc.text(`${r.name} - ${r.percent}% - ${r.status}`,10,y);
+y+=10;
+});
+doc.save("attendance_report.pdf");
 }
 
-renderTable();
+displayRecords();
+updateCharts();
 
 </script>
+
 </body>
 </html>
